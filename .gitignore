@@ -1,0 +1,11 @@
+.gradle/
+**/build/
+**/node_modules/
+frontend/dist/
+frontend/dist-pages/
+frontend/playwright-report/
+frontend/test-results/
+data/
+*.log
+.env
+.DS_Store
