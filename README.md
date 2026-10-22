@@ -2,7 +2,9 @@
 
 A working Google Drive-style file storage and **browser synchronization** platform, paired with an architecture workshop for mid-level and senior developers. Follow real transactions, interrupted transfers, concurrent edits, permissions, and recovery instead of stopping at a service diagram.
 
-**Public sample:** publication is being verified. The sample supports folder navigation, search, downloads, and revision inspection. Uploads, synchronization, encrypted storage, and permission enforcement run in the full local application.
+**[Live public sample](https://desi109.github.io/google-drive-design/)** · [Source repository](https://github.com/desi109/google-drive-design)
+
+The sample supports folder navigation, search, downloads, and revision inspection. Uploads, synchronization, encrypted storage, and permission enforcement run in the full local application.
 
 ## Quick start
 
@@ -130,6 +132,6 @@ Early commits are API-first and explain how to run their stage; later commits ad
 
 ## GitHub Pages
 
-The Pages workflow (`.github/workflows/pages.yml`, added in Step 8) uses the actual `main` branch, immutable official Action pins, `npm ci`, an explicit public-sample build, and browser verification before uploading **only `frontend/dist-pages`**. Pages uses `/google-drive-design/` as its base; hash-based folder navigation survives direct links and reloads. The verification workflow (`.github/workflows/ci.yml`, added in Step 8) additionally runs backend, launcher, packaged-local browser, and documentation checks.
+The [Pages workflow](.github/workflows/pages.yml) uses the actual `main` branch, immutable official Action pins, `npm ci`, an explicit public-sample build, and browser verification before uploading **only `frontend/dist-pages`**. Pages uses `/google-drive-design/` as its base; hash-based folder navigation survives direct links and reloads. The [verification workflow](.github/workflows/ci.yml) additionally runs backend, launcher, packaged-local browser, and documentation checks.
 
-Pages hosts authored public samples. It does not run Java, H2, upload sessions, server-enforced permissions, background cleanup, or synchronization between visitors. No runtime database or private uploads are exported to the sample. Publication and the actual public URL are checked separately from a successful static build.
+Pages hosts authored public samples. It does not run Java, H2, upload sessions, server-enforced permissions, background cleanup, or synchronization between visitors. No runtime database or private uploads are exported to the sample. The HTTPS deployment was verified in Chromium at the public URL, including folder navigation, search, a historical-revision download, direct-link reload and phone layout. Publication is checked separately from a successful static build.
