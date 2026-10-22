@@ -1,0 +1,33 @@
+{
+  "name": "commonplace-browser",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -b && vite build",
+    "build:pages": "tsc -b && vite build --mode pages",
+    "preview:pages": "vite preview --mode pages --host 127.0.0.1 --port 4173 --strictPort",
+    "test": "playwright test",
+    "test:pages": "playwright test --config playwright.pages.config.ts"
+  },
+  "dependencies": {
+    "lucide-react": "0.468.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.1.1",
+    "mermaid": "12.2.0",
+    "prettier": "3.9.10",
+    "typescript": "5.9.3",
+    "vite": "7.3.7"
+  }
+}

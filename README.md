@@ -23,3 +23,11 @@ The application now accepts SHA-256 manifests and resumable 4 MiB blocks. See [t
 `PUT /api/namespaces/{ns}/members` accepts `{"userId":"bob","role":"reader"}` (`writer` or `none` are also valid) and an idempotency key. Only owners can share. Poll `/notifications?after={cursor}` for hints and `/changes?after={cursor}` for durable events. Snapshots carry a matching cursor.
 
 `POST /api/entries/{id}/trash`, `/restore`, and `/purge` take `{"version":observedVersion}` and an idempotency key. Purge is owner-only, permanent, and requires trash first. `POST /api/namespaces/{ns}/gc` collects up to 100 unreferenced blocks safely. The [lifecycle chapter](docs/architecture/03-core-workflows-and-consistency.md) explains retention and collection roots. Sample content seeds once by default; set `DRIVE_SEED=false` to disable it.
+
+## Browser client
+
+The React/TypeScript frontend now supports folder navigation, namespace search, downloads, revision inspection, sharing controls and queued text edits. Run the API with `cd backend && ./gradlew bootRun`; in another terminal run `cd frontend && npm ci && npm run dev`. Vite serves `http://127.0.0.1:5173` and proxies `/api` to port8080.
+
+Open two independent browser profiles/contexts as Alice. Inspect Welcome.txt in both. Take one client offline after opening its text editor, save an offline draft, and save a different revision in the online client. Reconnect the first: the newer head stays intact and the stale draft appears as a conflict copy. This is browser synchronization, not native filesystem synchronization. Large uploads retain their session/manifest and require selecting the same original file after a reload.
+
+Frontend checks: `npm run build --prefix frontend`, `npm run build:pages --prefix frontend`, and `npm run test:pages --prefix frontend` (install the pinned Chromium with `cd frontend && npx playwright install chromium`). To test full local journeys against Vite/API, use `cd frontend && APP_URL=http://127.0.0.1:5173 npm test`. Static mode has original public samples only; uploads, synchronization and permission enforcement require the local backend.

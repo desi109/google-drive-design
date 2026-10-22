@@ -9,3 +9,5 @@ data/
 *.log
 .env
 .DS_Store
+
+*.tsbuildinfo
