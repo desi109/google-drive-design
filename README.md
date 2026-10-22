@@ -17,3 +17,9 @@ Create a namespace with `POST /api/namespaces` and `{"name":"My files"}`, and a 
 ## Resumable transfer API
 
 The application now accepts SHA-256 manifests and resumable 4 MiB blocks. See [the transfer contract and failure model](docs/architecture/03-core-workflows-and-consistency.md). Download responses stream authenticated blocks; stale content edits become conflict copies. Quota includes retained revisions and active reservations. Keep `block-key.bin` with your database backup; it is excluded from Git along with all runtime data.
+
+## Sharing, changes and retained data
+
+`PUT /api/namespaces/{ns}/members` accepts `{"userId":"bob","role":"reader"}` (`writer` or `none` are also valid) and an idempotency key. Only owners can share. Poll `/notifications?after={cursor}` for hints and `/changes?after={cursor}` for durable events. Snapshots carry a matching cursor.
+
+`POST /api/entries/{id}/trash`, `/restore`, and `/purge` take `{"version":observedVersion}` and an idempotency key. Purge is owner-only, permanent, and requires trash first. `POST /api/namespaces/{ns}/gc` collects up to 100 unreferenced blocks safely. The [lifecycle chapter](docs/architecture/03-core-workflows-and-consistency.md) explains retention and collection roots. Sample content seeds once by default; set `DRIVE_SEED=false` to disable it.

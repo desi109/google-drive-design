@@ -63,6 +63,7 @@ public class Transfers {
         String revision=Database.id();db.update("INSERT INTO revisions VALUES(?,?,?,?,?)",revision,file,u.get("sizeBytes"),actor,Database.now());
         db.update("INSERT INTO revision_blocks SELECT ?,part_index,ns,hash FROM upload_parts WHERE upload_id=?",revision,id);
         db.update("UPDATE entries SET head=?,version=version+1,updated_at=? WHERE id=?",revision,Database.now(),file);
+        catalog.events.append(ns,actor,conflict?"conflict_preserved":"revision_created",file);
         Map<String,Object> result=Map.of("fileId",file,"revisionId",revision,"conflict",conflict);
         try{db.update("UPDATE uploads SET state='COMPLETE',result_json=? WHERE id=?",catalog.json.writeValueAsString(result),id);}catch(Exception e){throw new IllegalStateException(e);}
         return result;

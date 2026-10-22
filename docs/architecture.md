@@ -24,3 +24,5 @@ The complete source chapter and its diagrams were inspected from the local cheat
 2. [Components and data](architecture/02-components-and-data.md): authoritative state and enforced constraints.
 
 3. [Workflows and consistency](architecture/03-core-workflows-and-consistency.md): resumability, encryption, immutable revisions and conflicts.
+
+4. [Security and delivery](architecture/04-security-and-delivery.md): trust boundaries and full/static application separation.

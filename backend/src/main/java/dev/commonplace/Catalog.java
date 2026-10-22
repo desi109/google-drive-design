@@ -8,8 +8,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class Catalog {
     static final long LIMIT=10_000_000_000L;
-    final Database db; final ObjectMapper json;
-    public Catalog(Database db,ObjectMapper json){this.db=db;this.json=json.copy().enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);}
+    final Database db; final ObjectMapper json; final Events events;
+    public Catalog(Database db,ObjectMapper json,Events events){this.events=events;this.db=db;this.json=json.copy().enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);}
     String text(Map<String,Object> b,String key){Object v=b.get(key);if(!(v instanceof String s))throw ApiError.bad(key+" must be text.");return s;}
     String optional(Map<String,Object>b,String key){return b.get(key)==null?"":text(b,key);}
     long integer(Map<String,Object>b,String key){Object v=b.get(key);if(!(v instanceof Number n)||n.doubleValue()!=n.longValue())throw ApiError.bad(key+" must be an integer.");return n.longValue();}
@@ -17,7 +17,7 @@ public class Catalog {
     String role(String actor,String ns){var m=db.rows("SELECT role FROM members WHERE ns=? AND user_id=?",ns,actor);if(m.isEmpty())throw new ApiError(403,"FORBIDDEN","This namespace is not shared with you.");return (String)m.getFirst().get("role");}
     void write(String actor,String ns){if(role(actor,ns).equals("reader"))throw new ApiError(403,"READ_ONLY","A reader cannot change this namespace.");}
     void owner(String actor,String ns){if(!role(actor,ns).equals("owner"))throw new ApiError(403,"OWNER_REQUIRED","Only the namespace owner can change sharing or purge data.");}
-    Map<String,Object> entry(String id){return db.one("SELECT * FROM entries WHERE id=?",id);}
+    Map<String,Object> entry(String id){return db.one("SELECT * FROM entries WHERE id=? AND purged=FALSE",id);}
     void parent(String ns,String p){if(p.isEmpty())return;var e=entry(p);if(!e.get("ns").equals(ns)||!(boolean)e.get("folder")||(boolean)e.get("deleted"))throw ApiError.bad("Choose an active folder in this namespace.");}
     void unique(String ns,String p,String name,String except){if(db.number("SELECT COUNT(*) FROM entries WHERE ns=? AND parent_id=? AND name=? AND deleted=FALSE AND id<>?",ns,p,name,except)>0)throw new ApiError(409,"NAME_EXISTS","An item already has this name in that folder.");}
     void version(Map<String,Object>e,long v){if(((Number)e.get("version")).longValue()!=v)throw new ApiError(409,"STALE_VERSION","This item changed. Refresh before changing metadata.");}
@@ -37,15 +37,19 @@ public class Catalog {
     Map<String,Object> createNamespace(String actor,String key,Map<String,Object>b){
         return retry(actor,key,List.of("namespace",b),()->{String id=Database.id();db.update("INSERT INTO namespaces VALUES (?,?,?,?)",id,name(text(b,"name")),actor,LIMIT);db.update("INSERT INTO members VALUES (?,?,?)",id,actor,"owner");return db.one("SELECT * FROM namespaces WHERE id=?",id);});
     }
-    Map<String,Object> snapshot(String actor,String ns){String r=role(actor,ns);return Map.of("namespace",db.one("SELECT * FROM namespaces WHERE id=?",ns),"role",r,"entries",db.rows("SELECT * FROM entries WHERE ns=? ORDER BY folder DESC,name",ns));}
+    Map<String,Object> snapshot(String actor,String ns){String r=role(actor,ns);return Map.of("namespace",db.one("SELECT * FROM namespaces WHERE id=?",ns),"role",r,
+            "entries",db.rows("SELECT e.*,COALESCE(r.size_bytes,0) AS size_bytes FROM entries e LEFT JOIN revisions r ON r.id=e.head WHERE e.ns=? AND e.purged=FALSE ORDER BY e.folder DESC,e.name",ns),
+            "cursor",events.cursor(ns),"usedBytes",db.number("SELECT COALESCE(SUM(r.size_bytes),0) FROM revisions r JOIN entries e ON e.id=r.file_id WHERE e.ns=?",ns),
+            "reservedBytes",db.number("SELECT COALESCE(SUM(size_bytes),0) FROM uploads WHERE ns=? AND state='OPEN' AND expires_at>?",ns,Database.now()),
+            "storedBytes",db.number("SELECT COALESCE(SUM(size_bytes+28),0) FROM blocks WHERE ns=?",ns));}
     Map<String,Object> folder(String actor,String ns,String key,Map<String,Object>b){write(actor,ns);return retry(actor,key,List.of("folder",ns,b),()->{
         String p=optional(b,"parentId"),n=name(text(b,"name")),id=Database.id();parent(ns,p);unique(ns,p,n,"");
-        db.update("INSERT INTO entries(id,ns,parent_id,name,folder,version,updated_at) VALUES(?,?,?,?,TRUE,1,?)",id,ns,p,n,Database.now());return entry(id);
+        db.update("INSERT INTO entries(id,ns,parent_id,name,folder,version,updated_at) VALUES(?,?,?,?,TRUE,1,?)",id,ns,p,n,Database.now());events.append(ns,actor,"folder_created",id);return entry(id);
     });}
     Map<String,Object> patch(String actor,String id,String key,Map<String,Object>b){var e=entry(id);String ns=(String)e.get("ns");write(actor,ns);return retry(actor,key,List.of("patch",id,b),()->{
         version(e,integer(b,"version"));if((boolean)e.get("deleted"))throw ApiError.bad("Restore this item first.");
         String p=text(b,"parentId"),n=name(text(b,"name"));parent(ns,p);unique(ns,p,n,id);
         String cursor=p;while(!cursor.isEmpty()){if(cursor.equals(id))throw ApiError.bad("A folder cannot contain itself.");cursor=(String)entry(cursor).get("parentId");}
-        db.update("UPDATE entries SET name=?,parent_id=?,version=version+1,updated_at=? WHERE id=?",n,p,Database.now(),id);return entry(id);
+        db.update("UPDATE entries SET name=?,parent_id=?,version=version+1,updated_at=? WHERE id=?",n,p,Database.now(),id);events.append(ns,actor,"metadata_changed",id);return entry(id);
     });}
 }

@@ -67,3 +67,23 @@ Upload creation: `POST /api/uploads`, bearer token, `Idempotency-Key`, JSON:
 For replacement add `fileId` and the observed `baseVersion`. Transfer blocks with `PUT /api/uploads/{id}/parts/{index}` using `application/octet-stream`. Complete with `POST /api/uploads/{id}/complete`. `GET /api/entries/{id}/revisions` lists immutable revisions; `GET /api/entries/{id}/download?revision={revisionId}` streams one. Structured errors include `413 FILE_TOO_LARGE`, `422 BLOCK_MISMATCH`, `409 MISSING_PARTS`, `409 QUOTA_EXCEEDED`, `410 UPLOAD_CLOSED` and `403 READ_ONLY`.
 
 [TransferTest](../../backend/src/test/java/dev/commonplace/TransferTest.java) exercises interruption, bad blocks, retries, encryption, reuse isolation, quota and stale edits. The 10 GB limit is a design input; declaring a 10 GB manifest is not proof that a full 10 GB transfer has been measured.
+
+## Changes, notifications and reconnect
+
+Every successful catalog mutation, sharing change and published revision appends a row to `changes` in the same transaction. The global sequence is monotonic in this single serializer; gaps are legal. `GET /api/namespaces/{ns}/changes?after=0` returns up to 100 events, a `nextCursor`, and `hasMore`. Pages advance only to the last returned event. A snapshot contains its cursor from the same transaction, so clients cannot miss a concurrent write between snapshot and checkpoint.
+
+`GET /api/namespaces/{ns}/notifications?after={cursor}` returns a changed hint and current high water mark. This local implementation polls; it does not run WebSockets, mobile push or per-device server queues. Events remain durably queryable after disconnect and restart. Notification loss is harmless because the feed/snapshot remains authoritative. Production can replace the hint transport without changing recovery semantics.
+
+Changes are retained indefinitely in the lab. A production retention horizon requires an explicit `410 CURSOR_EXPIRED` response and snapshot resync. If a backup restore moves the high-water mark behind a browser cursor, the feed returns `409 CURSOR_AHEAD`; reconnect replaces the cached snapshot. Membership is checked on every feed, notification, revision and download call. Revocation cannot erase copies a user already downloaded.
+
+## Deletion, retention and safe collection
+
+Trash is reversible and increments the metadata version. Folders must have no active children before trashing; there is no hidden recursive delete. Restore checks the current parent and sibling name. All revisions of a trashed file remain downloadable to current namespace members and continue consuming quota.
+
+Only an owner can permanently purge a trashed entry. Purge removes all of its revision manifests and revisions; a minimal purged entry tombstone and mutation receipt remain so retries cannot apply twice. Purged entries disappear from snapshots. Purge refuses folders with unpurged children and entries with active uploads targeting the file or parent. Resolve or cancel those uploads first.
+
+`POST /api/namespaces/{ns}/gc` performs an owner-only, at-most-100-block collection batch. It first expires elapsed sessions and drops closed-session part references in bounded batches. It deletes a block only when no revision manifest and no upload-part reference exists. A foreign key is a second line of defense. Collection, upload registration, publication and streamed readers share the same transaction serializer. There is no mark/sweep race in this process; distributed object storage needs a grace period plus leases/generation checks. Unreferenced physical bytes can remain until manual GC; this is safe space leakage rather than premature deletion.
+
+A scheduler performs session cleanup every minute, at most 100 expired sessions and 100 closed-session part sets per run. Expiration releases quota logically at the deadline even before cleanup. Terminal upload receipts, metadata tombstones and changes are retained; they need a documented retention policy at production scale.
+
+[SyncTest](../../backend/src/test/java/dev/commonplace/SyncTest.java) covers reader denial, revocation, durable cursor behavior, retained revisions, reference-safe GC, expired uploads and edits completed after trash.
