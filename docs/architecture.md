@@ -20,3 +20,5 @@ The implementation will use Java 21, Spring Boot, JDBC/H2, and a React/TypeScrip
 ## Reference review
 
 The complete source chapter and its diagrams were inspected from the local cheat-sheets checkout after the raw web fetch failed. The reference's file/version/block schema, upload/download sequences, namespace examples, conflict sequence, block/delta diagrams and distributed component diagram inform the workshop. Original project diagrams and explanations are written here; reference images are not redistributed.
+
+2. [Components and data](architecture/02-components-and-data.md): authoritative state and enforced constraints.
