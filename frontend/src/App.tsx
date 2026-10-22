@@ -741,7 +741,7 @@ export default function App() {
           )}
           <a
             className="storage-help"
-            href={guide + "#acceptance-criteria"}
+            href={guide + "#scope-and-evidence"}
             target="_blank"
             rel="noreferrer"
           >
@@ -981,7 +981,13 @@ export default function App() {
                       Export draft
                     </button>
                   )}
-                  <button onClick={() => setModal("discard:" + j.id)}>
+                  <button
+                    disabled={!!busy}
+                    onClick={() => {
+                      if (!busy && !flushing.current && !mutating.current)
+                        setModal("discard:" + j.id);
+                    }}
+                  >
                     Discard session
                   </button>
                 </div>
@@ -1074,6 +1080,15 @@ export default function App() {
                     <ChevronRight size={13} />
                     <span>Search across namespace</span>
                   </>
+                )}
+                {currentFolder && !isSample && canWrite && (
+                  <button
+                    aria-label="Folder actions"
+                    title="Rename, move or trash this folder"
+                    onClick={() => setSelected(currentFolder.id)}
+                  >
+                    <MoreHorizontal size={18} />
+                  </button>
                 )}
               </div>
               <div
@@ -1693,8 +1708,10 @@ export default function App() {
             <button onClick={() => setModal("")}>Keep session</button>
             <button
               className="danger-button"
+              disabled={!!busy}
               onClick={() =>
                 void (async () => {
+                  if (busy || flushing.current || mutating.current) return;
                   const id = modal.slice(8),
                     j = jobs.find((x) => x.id === id);
                   if (!j) return;

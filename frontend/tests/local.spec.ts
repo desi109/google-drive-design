@@ -89,10 +89,18 @@ test("folder upload resumes without retransmitting an accepted block", async ({
     .click();
   let firstParts = 0,
     interrupted = false;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const secondPart = page.waitForRequest((request) =>
+    request.url().endsWith("/parts/1"),
+  );
   await page.route("**/api/uploads/*/parts/*", async (route) => {
     if (route.request().url().endsWith("/parts/0")) firstParts++;
     if (route.request().url().endsWith("/parts/1") && !interrupted) {
       interrupted = true;
+      await held;
       await route.abort("failed");
       return;
     }
@@ -104,6 +112,14 @@ test("folder upload resumes without retransmitting an accepted block", async ({
     buffer: Buffer.alloc(4 * 1024 * 1024 + 31, 65),
   };
   await page.getByLabel("Choose file to upload").setInputFiles(file);
+  await secondPart;
+  try {
+    await expect(
+      page.getByRole("button", { name: "Discard session", exact: true }),
+    ).toBeDisabled();
+  } finally {
+    release();
+  }
   await expect(page.getByRole("alert")).toContainText(
     "Reselect the same file",
     { timeout: 20000 },
@@ -153,4 +169,59 @@ test("reader UI and server both reject writes", async ({ page, request }) => {
     data: { name: "Forbidden" },
   });
   expect(denied.status()).toBe(403);
+});
+
+test("active folders can be renamed, trashed and restored with the same ID", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: "Inspect Welcome.txt", exact: true }),
+  ).toBeVisible();
+  const name = "Folder lifecycle " + Date.now(),
+    renamed = name + " renamed";
+  await page.getByRole("button", { name: "New folder", exact: true }).click();
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill(name);
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("button", { name: "Open " + name, exact: true }).click();
+  const hash = await page.evaluate(() => location.hash);
+  await expect(
+    page.getByRole("button", { name: "Folder actions", exact: true }),
+  ).toBeVisible({ timeout: 2000 });
+  await page
+    .getByRole("button", { name: "Folder actions", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Rename or move", exact: true })
+    .click();
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill(renamed);
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: renamed, exact: true }).first(),
+  ).toBeVisible();
+  expect(await page.evaluate(() => location.hash)).toBe(hash);
+  await page
+    .getByRole("button", { name: "Move to trash", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Move to trash", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Trash", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Inspect " + renamed, exact: true })
+    .click();
+  await page.getByRole("button", { name: "Restore", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Restore", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: "My files", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Open " + renamed, exact: true })
+    .click();
+  expect(await page.evaluate(() => location.hash)).toBe(hash);
 });

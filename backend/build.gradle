@@ -16,3 +16,52 @@ dependencies {
 }
 dependencyLocking { lockAllConfigurations() }
 tasks.named('test') { useJUnitPlatform(); maxHeapSize = '512m' }
+
+// The local browser is packaged into the same executable JAR as the API.
+// Pages has its own dist-pages directory and is never copied into this JAR.
+def frontendDirectory = file('../frontend')
+def frontendOutput = file('../frontend/dist')
+def npmExecutable = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
+
+tasks.register('frontendInstall', Exec) {
+    group = 'build'
+    description = 'Installs the exact frontend dependencies from package-lock.json.'
+    workingDir frontendDirectory
+    commandLine npmExecutable, 'ci'
+    inputs.files file('../frontend/package.json'), file('../frontend/package-lock.json')
+    outputs.file file('../frontend/node_modules/.package-lock.json')
+}
+
+tasks.register('frontendBuild', Exec) {
+    group = 'build'
+    description = 'Builds the local frontend (not the public Pages sample).'
+    dependsOn 'frontendInstall'
+    workingDir frontendDirectory
+    commandLine npmExecutable, 'run', 'build'
+    inputs.files fileTree(frontendDirectory) {
+        include 'src/**', 'index.html', 'package.json', 'package-lock.json', 'tsconfig*.json', 'vite.config.*'
+    }
+    outputs.dir frontendOutput
+}
+
+tasks.named('bootJar') {
+    archiveFileName = 'commonplace-1.0.0.jar'
+    if (!providers.gradleProperty('skipFrontendBuild').map { it.toBoolean() }.getOrElse(false)) {
+        dependsOn 'frontendBuild'
+    }
+    from(frontendOutput) { into 'BOOT-INF/classes/static' }
+    doFirst {
+        if (!new File(frontendOutput, 'index.html').isFile()) {
+            throw new GradleException('Local frontend missing: run npm ci --prefix frontend && npm run build --prefix frontend, or run bootJar without -PskipFrontendBuild.')
+        }
+    }
+}
+
+tasks.register('printJavaLauncher') {
+    group = 'help'
+    description = 'Reports the exact Java 21 executable selected by Gradle for the launcher.'
+    doLast {
+        def launcher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }.get()
+        println "COMMONPLACE_JAVA=${launcher.executablePath.asFile.absolutePath}"
+    }
+}
