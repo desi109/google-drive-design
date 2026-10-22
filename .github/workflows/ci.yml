@@ -1,0 +1,48 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22.12.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Check startup behavior
+        run: npm test
+      - name: Test backend
+        run: ./backend/gradlew -p backend --no-daemon test
+      - name: Install the pinned frontend dependencies
+        run: npm ci --prefix frontend
+      - name: Build and package the local application
+        run: npm run build --prefix frontend && ./backend/gradlew -p backend --no-daemon bootJar -PskipFrontendBuild=true
+      - name: Build the public sample
+        run: npm run build:pages --prefix frontend
+      - name: Install Chromium
+        run: npm exec --prefix frontend -- playwright install --with-deps chromium
+      - name: Verify the packaged local application
+        run: npm run test:local
+      - name: Verify the public sample
+        run: npm run test:pages
+      - name: Verify documentation links and Mermaid diagrams
+        run: npm run test:docs
