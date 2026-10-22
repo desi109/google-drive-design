@@ -13,3 +13,7 @@ Prerequisite: a Java 21 JDK (Gradle discovers standard installed JDKs). Run `cd 
 Use `Authorization: Bearer local-alice-key`. Bob and Eve use `local-bob-key` and `local-eve-key`; these are public local teaching credentials. The server binds loopback by default. Set `ALICE_TOKEN`, `BOB_TOKEN`, and `EVE_TOKEN` before using a different trust boundary.
 
 Create a namespace with `POST /api/namespaces` and `{"name":"My files"}`, and a unique `Idempotency-Key` header. Read `/api/namespaces` and `/api/namespaces/{id}/snapshot`. Create folders at `/api/namespaces/{id}/folders`. `PATCH /api/entries/{id}` requires `name`, `parentId` and the observed `version`, plus a new idempotency key. IDs remain stable. Metadata lives in `backend/data` when launched from `backend`; later root startup standardizes the location.
+
+## Resumable transfer API
+
+The application now accepts SHA-256 manifests and resumable 4 MiB blocks. See [the transfer contract and failure model](docs/architecture/03-core-workflows-and-consistency.md). Download responses stream authenticated blocks; stale content edits become conflict copies. Quota includes retained revisions and active reservations. Keep `block-key.bin` with your database backup; it is excluded from Git along with all runtime data.
